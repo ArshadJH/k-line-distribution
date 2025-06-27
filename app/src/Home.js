@@ -7,7 +7,6 @@ var groupNames = res.body
 const Home = () => {
   return (
     <div className="p-6">
-        Groups
       <ul className="list-disc pl-6">
         {groupNames.map((groupName) => (
           <li key={groupName}>
