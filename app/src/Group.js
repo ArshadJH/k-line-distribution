@@ -7,6 +7,19 @@ const Group = () => {
   const searchParams = new URLSearchParams({
     'group_name': groupName
   }).toString()
+
+  const [checkedSongNames, setCheckedSongNames] = useState(
+    songNames.reduce((acc, songName) => ({ ...acc, [songName]: false }), {})
+  );
+
+  const handleChange = (event) => {
+    const { songName, checked } = event.target;
+    setCheckedSongNames((prevState) => ({
+      ...prevState,
+      [songName]: checked,
+    }));
+  };
+
   
   fetch('https://brygk8u8b9.execute-api.us-east-1.amazonaws.com/dev?' + searchParams)
     .then(response => response.json())
@@ -15,11 +28,19 @@ const Group = () => {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4"> {groupName} </h1>
-      <ul className="list-disc pl-6">
-        {songNames.map((songName) => (
-          <li key={songName}> {songName} </li>
-        ))}
-      </ul>
+      {songNames.map((songName) => (
+        <label key={songName} className="block">
+          <input
+            type="checkbox"
+            name={songName}
+            checked={checkedSongNames[songName]}
+            onChange={handleChange}
+            className="mr-2"
+          />
+          {songName}
+          <br/>
+        </label>
+      ))}
     </div>
   );
 };
