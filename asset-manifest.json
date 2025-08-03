@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/k-line-distribution/static/css/main.e6c13ad2.css",
-    "main.js": "/k-line-distribution/static/js/main.3d5ed032.js",
+    "main.js": "/k-line-distribution/static/js/main.65d2985b.js",
     "static/js/453.1a16ed4e.chunk.js": "/k-line-distribution/static/js/453.1a16ed4e.chunk.js",
     "index.html": "/k-line-distribution/index.html",
     "main.e6c13ad2.css.map": "/k-line-distribution/static/css/main.e6c13ad2.css.map",
-    "main.3d5ed032.js.map": "/k-line-distribution/static/js/main.3d5ed032.js.map",
+    "main.65d2985b.js.map": "/k-line-distribution/static/js/main.65d2985b.js.map",
     "453.1a16ed4e.chunk.js.map": "/k-line-distribution/static/js/453.1a16ed4e.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.3d5ed032.js"
+    "static/js/main.65d2985b.js"
   ]
 }
