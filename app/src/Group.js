@@ -6,6 +6,7 @@ const Group = () => {
   const [songs, setSongs] = useState({});
   const [artists, setArtists] = useState([]);
   const [currSong, setCurrSong] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const { groupName } = useParams();
   const searchParams = new URLSearchParams({ group_name: groupName }).toString();
@@ -21,18 +22,31 @@ const Group = () => {
         initializeState(data.body, data.artists);
       } catch (err) {
         console.error("Error fetching group data:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchGroupData();
   }, [searchParams]);
 
-  // Toggle song checkbox
+  // Toggle individual song
   const handleChange = useCallback((songUrl) => {
     setSongs((prev) => ({
       ...prev,
       [songUrl]: { ...prev[songUrl], checked: !prev[songUrl].checked },
     }));
+  }, []);
+
+  // Toggle all songs in a release date group
+  const handleGroupChange = useCallback((releaseDate, checked, groupedSongs) => {
+    setSongs((prev) => {
+      const updates = {};
+      groupedSongs[releaseDate].forEach((song) => {
+        updates[song.song_url] = { ...prev[song.song_url], checked };
+      });
+      return { ...prev, ...updates };
+    });
   }, []);
 
   // Initialize state from API data
@@ -83,30 +97,71 @@ const Group = () => {
     }, {});
   }, [songs]);
 
+  // Helper: get most common album name in a group
+  const getMostCommonAlbum = (songsForDate) => {
+    const freq = songsForDate.reduce((acc, song) => {
+      const album = song.album || "Unknown Album";
+      acc[album] = (acc[album] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(freq).reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  };
+
+  if (loading) {
+    return <h2>Loading songs...</h2>;
+  }
+
   return (
     <div style={{ display: "flex" }}>
       {/* Song List */}
       <div style={{ flex: 1 }}>
         <h1>{groupName}</h1>
-        {Object.entries(groupedSongs).map(([releaseDate, songsForDate]) => (
-          <div key={releaseDate} style={{ marginBottom: "1rem" }}>
-            <h3>{releaseDate}</h3>
-            {songsForDate.map((song) => (
-              <label
-                key={song.song_url}
-                style={{ display: "block" }}
-                onClick={() => setCurrSong(song)}
-              >
+        {Object.entries(groupedSongs).map(([releaseDate, songsForDate]) => {
+          const allChecked = songsForDate.every((song) => song.checked);
+          const someChecked = songsForDate.some((song) => song.checked);
+          const albumName = getMostCommonAlbum(songsForDate);
+
+          return (
+            <div key={releaseDate} style={{ marginBottom: "1rem" }}>
+              {/* Group checkbox */}
+              <div style={{ fontWeight: "bold" }}>
                 <input
                   type="checkbox"
-                  checked={song.checked}
-                  onChange={() => handleChange(song.song_url)}
+                  checked={allChecked}
+                  ref={(el) => {
+                    if (el) el.indeterminate = !allChecked && someChecked;
+                  }}
+                  onChange={(e) =>
+                    handleGroupChange(releaseDate, e.target.checked, groupedSongs)
+                  }
                 />
-                {song.song_name}
-              </label>
-            ))}
-          </div>
-        ))}
+                <span style={{ marginLeft: "0.5rem" }}>
+                  {albumName} ({releaseDate})
+                </span>
+              </div>
+
+              {/* Individual songs */}
+              {songsForDate.map((song) => (
+                <div
+                  key={song.song_url}
+                  style={{ display: "flex", alignItems: "center", marginLeft: "1.5rem" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={song.checked}
+                    onChange={() => handleChange(song.song_url)}
+                  />
+                  <span
+                    style={{ marginLeft: "0.5rem", cursor: "pointer" }}
+                    onClick={() => setCurrSong(song)}
+                  >
+                    {song.song_name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       {/* Current Song Graph */}

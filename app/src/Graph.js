@@ -12,11 +12,14 @@ const Graph = ({ data }) => {
   const formatPercentage = (value) =>
     `${Math.floor((value / totalSyllables) * 100)}%`;
 
-  const graphData = artists.map(({ name, color }) => ({
-    label: name,
-    color,
-    value: lineDist[name],
-  }));
+  // Build graph data and remove entries where value is 0
+  const graphData = artists
+    .map(({ name, color }) => ({
+      label: name,
+      color,
+      value: Number(lineDist[name]) || 0,
+    }))
+    .filter(({ value }) => value > 0);
 
   const sortedGraphData = [...graphData].sort((a, b) => b.value - a.value);
 
