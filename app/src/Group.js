@@ -15,142 +15,45 @@ const Group = () => {
   const { groupName } = useParams()
   const searchParams = new URLSearchParams({ group_name: groupName }).toString()
 
-  // Fetch group data
-  useEffect(() => {
-    const fetchGroupData = async () => {
-      try {
-        const response = await fetch(
-          `https://brygk8u8b9.execute-api.us-east-1.amazonaws.com/dev?${searchParams}`
-        )
-        const data = await response.json()
-        initializeState(data.body)
-      } catch (err) {
-        console.error('Error fetching group data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchGroupData()
-  }, [searchParams])
+  /** -------------------- Helpers -------------------- **/
 
-  const initializeState = songsArray => {
-    const songsMap = Object.fromEntries(
+  const mapSongsArrayToState = songsArray =>
+    Object.fromEntries(
       songsArray.map(song => [song.song_url, { ...song, checked: true, highlight: false }])
     )
-    setSongs(songsMap)
-  }
 
-  const handleChange = useCallback(songUrl => {
-    setSongs(prev => ({
-      ...prev,
-      [songUrl]: { ...prev[songUrl], checked: !prev[songUrl].checked }
-    }))
-  }, [])
+  const updateSongs = updates =>
+    setSongs(prev => ({ ...prev, ...updates }))
 
-  const handleGroupChange = useCallback(
-    (releaseDate, checked, groupedSongs) => {
-      setSongs(prev => {
-        const updates = {}
-        groupedSongs[releaseDate].forEach(song => {
-          updates[song.song_url] = { ...prev[song.song_url], checked }
-        })
-        return { ...prev, ...updates }
-      })
-    },
-    []
-  )
+  const toggleSong = songUrl =>
+    updateSongs({ [songUrl]: { ...songs[songUrl], checked: !songs[songUrl].checked } })
 
-  const handleToggleAll = useCallback(() => {
-    setSongs(prev => {
-      const allChecked = Object.values(prev).every(song => song.checked)
-      return Object.fromEntries(
-        Object.entries(prev).map(([url, song]) => [
-          url,
-          { ...song, checked: !allChecked }
-        ])
-      )
-    })
-  }, [])
-
-  // Sequential check with pause/resume and cancel
-  const handleCheckAllSequentially = useCallback(async () => {
-    if (isCheckingSequentially) return
-    setIsCheckingSequentially(true)
-    pauseRef.current = false
-    cancelRef.current = false
-    setIsPaused(false)
-
-    const urls = Object.keys(songs)
-    const total = urls.length
-
-    // Uncheck all first
-    setSongs(prev =>
-      Object.fromEntries(
-        Object.entries(prev).map(([url, song]) => [
-          url,
-          { ...song, checked: false, highlight: false }
-        ])
-      )
-    )
-    setProgress(0)
-    await new Promise(resolve => setTimeout(resolve, 50)) // allow UI to update
-
-    for (let i = 0; i < total; i++) {
-      if (cancelRef.current) break
-
-      // Pause loop using ref
-      while (pauseRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        if (cancelRef.current) break
-      }
-
-      const url = urls[i]
-      setSongs(prev => ({
-        ...prev,
-        [url]: { ...prev[url], checked: true, highlight: true }
-      }))
-      setProgress(Math.round(((i + 1) / total) * 100))
-
-      await new Promise(resolve => setTimeout(resolve, 250)) // quarter second delay
-
-      setSongs(prev => ({
-        ...prev,
-        [url]: { ...prev[url], highlight: false }
-      }))
-    }
-
-    setIsCheckingSequentially(false)
-    pauseRef.current = false
-    cancelRef.current = false
-    setIsPaused(false)
-  }, [songs, isCheckingSequentially])
-
-  const handlePauseResume = () => {
-    if (!isCheckingSequentially) return
-    pauseRef.current = !pauseRef.current
-    setIsPaused(pauseRef.current)
-  }
-
-  const handleCancel = () => {
-    if (!isCheckingSequentially) return
-    cancelRef.current = true
-    pauseRef.current = false
-    setIsPaused(false)
-    setIsCheckingSequentially(false)
-    setProgress(0)
-  }
-
-  const groupedSongs = useMemo(() => {
-    return Object.values(songs).reduce((acc, song) => {
-      const date = song.release_date || 'Unknown Release Date'
-      if (!acc[date]) acc[date] = []
-      acc[date].push(song)
+  const toggleGroup = (releaseDate, checked, grouped) => {
+    const updates = grouped[releaseDate].reduce((acc, song) => {
+      acc[song.song_url] = { ...songs[song.song_url], checked }
       return acc
     }, {})
-  }, [songs])
+    updateSongs(updates)
+  }
 
-  const aggregateData = useMemo(() => {
-    const checkedSongs = Object.values(songs).filter(song => song.checked)
+  const toggleAll = () => {
+    const allChecked = Object.values(songs).every(song => song.checked)
+    const updates = Object.fromEntries(
+      Object.entries(songs).map(([url, song]) => [url, { ...song, checked: !allChecked }])
+    )
+    setSongs(updates)
+  }
+
+  const computeMostCommonAlbum = songsForDate => {
+    const freq = songsForDate.reduce((acc, song) => {
+      const album = song.album || 'Unknown Album'
+      acc[album] = (acc[album] || 0) + 1
+      return acc
+    }, {})
+    return Object.entries(freq).reduce((a, b) => (b[1] > a[1] ? b : a))[0]
+  }
+
+  const computeAggregateData = checkedSongs => {
     if (!checkedSongs.length) return null
 
     const freqMap = checkedSongs.reduce((acc, song) => {
@@ -158,19 +61,13 @@ const Group = () => {
       acc[key] = (acc[key] || 0) + 1
       return acc
     }, {})
-    const [topArtistsKey] = Object.entries(freqMap).reduce((a, b) =>
-      a[1] >= b[1] ? a : b
-    )
+    const [topArtistsKey] = Object.entries(freqMap).reduce((a, b) => (a[1] >= b[1] ? a : b))
     const topArtists = JSON.parse(topArtistsKey)
 
-    const colorMap = Object.fromEntries(
-      topArtists.map(({ name, color }) => [color, name])
-    )
+    const colorMap = Object.fromEntries(topArtists.map(({ name, color }) => [color, name]))
 
     const totalLineDistribution = checkedSongs.reduce((acc, song) => {
-      const nameToColor = Object.fromEntries(
-        song.artists.map(({ name, color }) => [name, color])
-      )
+      const nameToColor = Object.fromEntries(song.artists.map(({ name, color }) => [name, color]))
       Object.entries(song.line_distribution).forEach(([artistName, value]) => {
         const color = nameToColor[artistName]
         if (color in colorMap) acc[color] = (acc[color] || 0) + Number(value)
@@ -184,20 +81,101 @@ const Group = () => {
       ),
       artists: topArtists
     }
-  }, [songs])
+  }
 
-  const getMostCommonAlbum = songsForDate => {
-    const freq = songsForDate.reduce((acc, song) => {
-      const album = song.album || 'Unknown Album'
-      acc[album] = (acc[album] || 0) + 1
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+  /** -------------------- Fetch & Initialize -------------------- **/
+
+  useEffect(() => {
+    const fetchGroupData = async () => {
+      try {
+        const response = await fetch(
+          `https://brygk8u8b9.execute-api.us-east-1.amazonaws.com/dev?${searchParams}`
+        )
+        const data = await response.json()
+        setSongs(mapSongsArrayToState(data.body))
+      } catch (err) {
+        console.error('Error fetching group data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchGroupData()
+  }, [searchParams])
+
+  /** -------------------- Sequential Check Logic -------------------- **/
+
+  const checkAllSequentially = useCallback(async () => {
+    if (isCheckingSequentially) return
+
+    setIsCheckingSequentially(true)
+    pauseRef.current = false
+    cancelRef.current = false
+    setIsPaused(false)
+
+    const urls = Object.keys(songs)
+    const total = urls.length
+
+    // Uncheck all first
+    setSongs(prev =>
+      Object.fromEntries(Object.entries(prev).map(([url, song]) => [url, { ...song, checked: false, highlight: false }]))
+    )
+    setProgress(0)
+    await delay(50)
+
+    await urls.reduce(async (prevPromise, url, index) => {
+      await prevPromise
+      if (cancelRef.current) return
+
+      // Pause loop
+      while (pauseRef.current) await delay(100)
+
+      updateSongs({ [url]: { ...songs[url], checked: true, highlight: true } })
+      setProgress(Math.round(((index + 1) / total) * 100))
+      await delay(250)
+      updateSongs({ [url]: { ...songs[url], highlight: false } })
+    }, Promise.resolve())
+
+    setIsCheckingSequentially(false)
+    pauseRef.current = false
+    cancelRef.current = false
+    setIsPaused(false)
+  }, [songs, isCheckingSequentially])
+
+  const pauseResume = () => {
+    if (!isCheckingSequentially) return
+    pauseRef.current = !pauseRef.current
+    setIsPaused(pauseRef.current)
+  }
+
+  const cancel = () => {
+    if (!isCheckingSequentially) return
+    cancelRef.current = true
+    pauseRef.current = false
+    setIsPaused(false)
+    setIsCheckingSequentially(false)
+    setProgress(0)
+  }
+
+  /** -------------------- Derived State -------------------- **/
+
+  const groupedSongs = useMemo(() => {
+    return Object.values(songs).reduce((acc, song) => {
+      const date = song.release_date || 'Unknown Release Date'
+      if (!acc[date]) acc[date] = []
+      acc[date].push(song)
       return acc
     }, {})
-    return Object.entries(freq).reduce((a, b) => (b[1] > a[1] ? b : a))[0]
-  }
+  }, [songs])
+
+  const checkedSongs = useMemo(() => Object.values(songs).filter(song => song.checked), [songs])
+  const aggregateData = useMemo(() => computeAggregateData(checkedSongs), [checkedSongs])
+  const allChecked = useMemo(() => Object.values(songs).every(song => song.checked), [songs])
 
   if (loading) return <div className='p-6'>Loading songs...</div>
 
-  const allChecked = Object.values(songs).every(song => song.checked)
+  /** -------------------- Render -------------------- **/
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -205,28 +183,16 @@ const Group = () => {
 
       {/* Buttons */}
       <div style={{ marginBottom: '1rem' }}>
-        <button onClick={handleToggleAll} disabled={isCheckingSequentially}>
+        <button onClick={toggleAll} disabled={isCheckingSequentially}>
           {allChecked ? 'Uncheck All Songs' : 'Check All Songs'}
         </button>
-        <button
-          style={{ marginLeft: '1rem' }}
-          onClick={handleCheckAllSequentially}
-          disabled={isCheckingSequentially}
-        >
+        <button style={{ marginLeft: '1rem' }} onClick={checkAllSequentially} disabled={isCheckingSequentially}>
           Animate
         </button>
-        <button
-          style={{ marginLeft: '1rem' }}
-          onClick={handlePauseResume}
-          disabled={!isCheckingSequentially}
-        >
+        <button style={{ marginLeft: '1rem' }} onClick={pauseResume} disabled={!isCheckingSequentially}>
           {isPaused ? 'Resume' : 'Pause'}
         </button>
-        <button
-          style={{ marginLeft: '1rem' }}
-          onClick={handleCancel}
-          disabled={!isCheckingSequentially}
-        >
+        <button style={{ marginLeft: '1rem' }} onClick={cancel} disabled={!isCheckingSequentially}>
           Cancel
         </button>
       </div>
@@ -260,7 +226,7 @@ const Group = () => {
           {Object.entries(groupedSongs).map(([releaseDate, songsForDate]) => {
             const allCheckedGroup = songsForDate.every(song => song.checked)
             const someChecked = songsForDate.some(song => song.checked)
-            const albumName = getMostCommonAlbum(songsForDate)
+            const albumName = computeMostCommonAlbum(songsForDate)
 
             return (
               <div key={releaseDate} style={{ marginBottom: '1rem' }}>
@@ -271,9 +237,7 @@ const Group = () => {
                     ref={el => {
                       if (el) el.indeterminate = !allCheckedGroup && someChecked
                     }}
-                    onChange={e =>
-                      handleGroupChange(releaseDate, e.target.checked, groupedSongs)
-                    }
+                    onChange={e => toggleGroup(releaseDate, e.target.checked, groupedSongs)}
                   />
                   <span style={{ marginLeft: '0.5rem' }}>
                     {albumName} ({releaseDate})
@@ -288,17 +252,15 @@ const Group = () => {
                       alignItems: 'center',
                       marginLeft: '1.5rem',
                       cursor: 'pointer',
-                      backgroundColor: song.highlight
-                        ? 'rgba(255, 255, 0, 0.3)'
-                        : 'transparent',
+                      backgroundColor: song.highlight ? 'rgba(255, 255, 0, 0.3)' : 'transparent',
                       transition: 'background-color 0.3s'
                     }}
-                    onClick={() => handleChange(song.song_url)}
+                    onClick={() => toggleSong(song.song_url)}
                   >
                     <input
                       type='checkbox'
                       checked={song.checked}
-                      onChange={() => handleChange(song.song_url)}
+                      onChange={() => toggleSong(song.song_url)}
                       onClick={e => e.stopPropagation()}
                     />
                     <span style={{ marginLeft: '0.5rem' }}>{song.song_name}</span>
