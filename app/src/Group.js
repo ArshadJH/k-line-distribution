@@ -165,7 +165,7 @@ const Group = () => {
               {/* Group checkbox */}
               <div style={{ fontWeight: 'bold' }}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={allCheckedGroup}
                   ref={el => {
                     if (el) el.indeterminate = !allCheckedGroup && someChecked
@@ -196,7 +196,7 @@ const Group = () => {
                   onClick={() => handleChange(song.song_url)} // toggle on container click
                 >
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={song.checked}
                     onChange={() => handleChange(song.song_url)}
                     onClick={e => e.stopPropagation()} // prevent double toggle
