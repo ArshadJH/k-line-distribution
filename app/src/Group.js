@@ -44,7 +44,10 @@ const Group = () => {
             maxColor = artistColor;
           }
         });
-        return [song.song_url, { ...song, checked: true, highlight: false, maxColor }];
+        return [
+          song.song_url,
+          { ...song, checked: true, highlight: false, maxColor, persistentHighlight: true },
+        ];
       })
     );
 
@@ -113,7 +116,10 @@ const Group = () => {
   const checkSongsByArtistColor = (color) => {
     const isSame = activeArtistColor === color;
     const updates = Object.fromEntries(
-      Object.entries(songs).map(([url, song]) => [url, { ...song, checked: !isSame && song.maxColor === color }])
+      Object.entries(songs).map(([url, song]) => [
+        url,
+        { ...song, checked: !isSame && song.maxColor === color },
+      ])
     );
     setSongs(updates);
     setActiveArtistColor(isSame ? null : color);
@@ -177,9 +183,10 @@ const Group = () => {
     const urls = Object.keys(songs);
     const total = urls.length;
 
+    // Uncheck all songs initially
     setSongs((prev) =>
       Object.entries(prev).reduce((acc, [url, song]) => {
-        acc[url] = { ...song, checked: false, highlight: false };
+        acc[url] = { ...song, checked: false };
         return acc;
       }, {})
     );
@@ -191,7 +198,10 @@ const Group = () => {
       if (cancelRef.current) return;
       while (pauseRef.current) await delay(100);
 
-      updateSongs({ [url]: { ...songs[url], checked: true, highlight: true } });
+      // Highlight using the song's maxColor
+      updateSongs({
+        [url]: { ...songs[url], checked: true, highlight: true },
+      });
 
       // Auto-scroll highlighted song into view
       if (songRefs.current[url]) {
@@ -200,7 +210,11 @@ const Group = () => {
 
       setProgress(Math.round(((index + 1) / total) * 100));
       await delay(250);
-      updateSongs({ [url]: { ...songs[url], highlight: false } });
+
+      // Remove temporary highlight
+      updateSongs({
+        [url]: { ...songs[url], highlight: false },
+      });
     }, Promise.resolve());
 
     setIsCheckingSequentially(false);
@@ -321,7 +335,7 @@ const Group = () => {
           )}
         </div>
 
-        {/* Top Artist Buttons (always on new row) */}
+        {/* Top Artist Buttons (new row) */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           {topArtists.map((artist) => (
             <button
@@ -376,9 +390,11 @@ const Group = () => {
                       marginLeft: "1.5rem",
                       cursor: "pointer",
                       backgroundColor: song.highlight
-                        ? "rgba(255, 255, 0, 0.3)"
+                        ? `${song.maxColor}55` // animated highlight
                         : activeArtistColor && song.maxColor === activeArtistColor
-                        ? "rgba(0, 150, 255, 0.2)"
+                        ? `${song.maxColor}33` // filtered highlight
+                        : song.persistentHighlight
+                        ? `${song.maxColor}22` // base persistent highlight
                         : "transparent",
                       transition: "background-color 0.3s",
                     }}
